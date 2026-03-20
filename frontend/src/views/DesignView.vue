@@ -89,7 +89,7 @@
         <div v-if="addModal.tab === 'single'">
           <div class="form-group">
             <label>Label</label>
-            <input v-model="addModal.label" placeholder="Node label" @keyup.enter="doAdd" autofocus />
+            <input v-model="addModal.label" placeholder="Node label" @keyup.enter="doAdd" :ref="addInputRef" autofocus />
           </div>
         </div>
 
@@ -177,6 +177,8 @@ const addModal = reactive({
   templateId: null
 })
 
+const addInputRef = ref(null)
+
 // Edit modal
 const editModal = reactive({
   open: false,
@@ -229,6 +231,11 @@ function openAddModal(parentId) {
   addModal.label = ''
   addModal.copy = ''
   addModal.templateId = null
+  nextTick(() => {
+    if (addInputRef.value) {
+      addInputRef.value.focus()
+    }
+  })
 }
 
 async function doAdd() {
