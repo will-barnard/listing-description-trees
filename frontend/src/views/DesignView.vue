@@ -89,7 +89,7 @@
         <div v-if="addModal.tab === 'single'">
           <div class="form-group">
             <label>Label</label>
-            <input v-model="addModal.label" placeholder="Node label" @keyup.enter="doAdd" :ref="addInputRef" autofocus />
+            <input v-model="addModal.label" placeholder="Node label" @keyup.enter="doAdd" ref="addInputRef" />
           </div>
         </div>
 
@@ -148,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
 import { useTreeStore } from '../stores/tree'
 import { api } from '../api'
 import DesignNode from '../components/DesignNode.vue'
