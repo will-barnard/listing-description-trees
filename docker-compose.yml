@@ -23,9 +23,6 @@ services:
       AUTH_JWKS_URL: ${AUTH_JWKS_URL}
       AUTH_ISSUER: ${AUTH_ISSUER}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-brew_token}
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - internal
 
@@ -50,6 +47,7 @@ services:
 
 networks:
   internal:
+    name: listing-trees-internal
 
 volumes:
   postgres-data:
