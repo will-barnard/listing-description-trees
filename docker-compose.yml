@@ -4,11 +4,11 @@ services:
     expose:
       - "80"
     depends_on:
-      - backend
+      - listing-trees-backend
     networks:
       - internal
 
-  backend:
+  listing-trees-backend:
     build: ./backend
     expose:
       - "3001"
