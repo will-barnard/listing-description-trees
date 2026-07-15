@@ -54,7 +54,10 @@
           </button>
         </div>
 
-        <p v-if="dragSourceId" class="drop-hint">Drop anywhere in this box to move it to the top level.</p>
+        <!-- Absolutely positioned so it never touches document flow — toggling
+             it must not reflow the node list while a native drag is active,
+             or the browser can glitch/cancel the drag mid-gesture. -->
+        <span class="drop-hint" :class="{ visible: dragSourceId }">Drop anywhere in this box to move to the top level</span>
 
         <div v-if="rootChildren.length === 0" class="empty-level">
           <p>No nodes yet. Click + to add the first one.</p>
@@ -544,6 +547,7 @@ async function redo() {
 }
 
 .tree-root {
+  position: relative;
   background: var(--bg-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -557,12 +561,22 @@ async function redo() {
 }
 
 .drop-hint {
-  font-size: 0.8rem;
+  position: absolute;
+  top: 16px;
+  right: 56px;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  margin-bottom: 12px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
+  background: var(--bg-raised);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+
+.drop-hint.visible {
+  opacity: 1;
 }
 
 .root-header {
