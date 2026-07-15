@@ -2,11 +2,29 @@
   <div class="app">
     <header class="app-header">
       <router-link to="/" class="logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-          <circle cx="12" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <!-- shared trunk -->
+          <line x1="12" y1="21" x2="12" y2="16"/>
+          <!-- left: stem branching into a round, many-boughed canopy -->
+          <line x1="12" y1="16" x2="9" y2="12"/>
+          <line x1="9" y1="12" x2="6" y2="8"/>
+          <line x1="9" y1="12" x2="9" y2="6"/>
+          <line x1="9" y1="12" x2="6" y2="14"/>
+          <circle cx="9" cy="11" r="2.4" fill="currentColor" stroke="none"/>
+          <circle cx="5.3" cy="7" r="2.1" fill="currentColor" stroke="none"/>
+          <circle cx="9" cy="5" r="1.9" fill="currentColor" stroke="none"/>
+          <circle cx="5" cy="14.5" r="1.9" fill="currentColor" stroke="none"/>
+          <!-- right: stem branching into a decision-tree node graph -->
+          <line x1="12" y1="16" x2="15" y2="12"/>
+          <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none"/>
+          <line x1="15" y1="12" x2="18" y2="6.5"/>
+          <circle cx="18" cy="6.5" r="1.3" fill="currentColor" stroke="none"/>
+          <line x1="15" y1="12" x2="17" y2="15"/>
+          <circle cx="17" cy="15" r="1.2" fill="currentColor" stroke="none"/>
+          <line x1="17" y1="15" x2="20" y2="12.5"/>
+          <circle cx="20" cy="12.5" r="1.1" fill="currentColor" stroke="none"/>
+          <line x1="17" y1="15" x2="20" y2="16.5"/>
+          <circle cx="20" cy="16.5" r="1.1" fill="currentColor" stroke="none"/>
         </svg>
         <span>Listing Trees</span>
       </router-link>
