@@ -5,6 +5,7 @@ const authMiddleware = require('./middleware/auth');
 const { adminOnly } = require('./middleware/auth');
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
+const settingsRouter = require('./routes/settings');
 const treesRouter = require('./routes/trees');
 const nodesRouter = require('./routes/nodes');
 const templatesRouter = require('./routes/templates');
@@ -39,6 +40,7 @@ function createApp() {
 
   // The whole app lives behind auth from here down.
   app.use('/api/users', authMiddleware, adminOnly, usersRouter);
+  app.use('/api/settings', authMiddleware, settingsRouter);
   app.use('/api/trees', authMiddleware, treesRouter);
   app.use('/api/nodes', authMiddleware, nodesRouter);
   app.use('/api/templates', authMiddleware, templatesRouter);

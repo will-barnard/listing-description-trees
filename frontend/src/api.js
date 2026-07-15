@@ -44,6 +44,10 @@ export const api = {
   updateUserRole: (id, role) => request(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
 
+  // App settings (readable by anyone signed in, editable by admins only)
+  getSettings: () => request('/settings'),
+  updateSettings: (data) => request('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+
   // Trees
   getTrees: () => request('/trees'),
   getTree: (id) => request(`/trees/${id}`),

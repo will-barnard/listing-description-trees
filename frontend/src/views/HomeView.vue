@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div class="home-header">
-      <h1>Your Trees</h1>
+      <h1>{{ orgName || 'Your Trees' }}</h1>
       <button class="btn btn-primary" @click="showCreate = true">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Tree
@@ -79,8 +79,12 @@ const store = useTreeStore()
 const showCreate = ref(false)
 const newTree = ref({ name: '', description: '' })
 const deleteTarget = ref(null)
+const orgName = ref('')
 
-onMounted(() => store.fetchTrees())
+onMounted(() => {
+  store.fetchTrees()
+  api.getSettings().then(s => { orgName.value = s.orgName }).catch(() => {})
+})
 
 function formatDate(d) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

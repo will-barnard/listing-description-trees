@@ -50,6 +50,18 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Single-row table of app-wide settings editable by admins (e.g. the
+-- organization name shown on the home page).
+CREATE TABLE IF NOT EXISTS app_settings (
+  id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  org_name VARCHAR(255) NOT NULL DEFAULT 'Your Trees',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO app_settings (id, org_name)
+VALUES (1, 'Your Trees')
+ON CONFLICT (id) DO NOTHING;
 `;
 
 async function migrate() {

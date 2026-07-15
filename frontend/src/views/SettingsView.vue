@@ -8,6 +8,24 @@
       <h1>Settings</h1>
     </div>
 
+    <!-- Organization Name (admin only) -->
+    <section class="settings-section" v-if="auth.isAdmin">
+      <div class="section-header">
+        <h2>Organization</h2>
+      </div>
+      <p class="section-desc">Shown as the heading on the home page instead of "Your Trees".</p>
+
+      <p v-if="orgError" class="banner banner-danger">{{ orgError }}</p>
+      <p v-if="orgSaved" class="banner banner-success">Saved.</p>
+
+      <div class="org-name-row">
+        <input v-model="orgNameInput" placeholder="e.g. Acme Motors" @keyup.enter="saveOrgName" />
+        <button class="btn btn-primary btn-sm" @click="saveOrgName" :disabled="!orgNameInput.trim() || orgSaving">
+          {{ orgSaving ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </section>
+
     <!-- User Management (admin only) -->
     <section class="settings-section" v-if="auth.isAdmin">
       <div class="section-header">
@@ -231,10 +249,45 @@ const canSaveUser = computed(() =>
   userModal.password.length >= 8
 )
 
+// Organization name (admin only)
+const orgNameInput = ref('')
+const orgSaving = ref(false)
+const orgSaved = ref(false)
+const orgError = ref('')
+
 onMounted(async () => {
   await fetchTemplates()
-  if (auth.isAdmin) await fetchUsers()
+  if (auth.isAdmin) {
+    await fetchUsers()
+    await fetchOrgName()
+  }
 })
+
+async function fetchOrgName() {
+  try {
+    const settings = await api.getSettings()
+    orgNameInput.value = settings.orgName
+  } catch (err) {
+    orgError.value = err.message
+  }
+}
+
+async function saveOrgName() {
+  if (!orgNameInput.value.trim()) return
+  orgSaving.value = true
+  orgError.value = ''
+  orgSaved.value = false
+  try {
+    const settings = await api.updateSettings({ orgName: orgNameInput.value.trim() })
+    orgNameInput.value = settings.orgName
+    orgSaved.value = true
+    setTimeout(() => (orgSaved.value = false), 2000)
+  } catch (err) {
+    orgError.value = err.message
+  } finally {
+    orgSaving.value = false
+  }
+}
 
 async function fetchUsers() {
   usersLoading.value = true
@@ -514,5 +567,20 @@ async function doDelete() {
 .banner-danger {
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+.banner-success {
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--success);
+}
+
+.org-name-row {
+  display: flex;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.org-name-row input {
+  flex: 1;
 }
 </style>
