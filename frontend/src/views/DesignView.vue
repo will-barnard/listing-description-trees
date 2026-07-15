@@ -41,13 +41,20 @@
 
     <template v-else-if="store.currentTree">
       <!-- Root level + button -->
-      <div class="tree-root">
+      <div
+        class="tree-root"
+        :class="{ 'is-root-drop-target': isRootDropTarget }"
+        @dragover.prevent="onRootDragOver"
+        @drop.prevent="onRootDrop"
+      >
         <div class="root-header">
           <span class="root-label">{{ store.currentTree.name }}</span>
           <button class="add-btn" @click="openAddModal(null)" title="Add root node">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
+
+        <p v-if="dragSourceId" class="drop-hint">Drop anywhere in this box to move it to the top level.</p>
 
         <div v-if="rootChildren.length === 0" class="empty-level">
           <p>No nodes yet. Click + to add the first one.</p>
@@ -61,6 +68,7 @@
             :expanded-set="expandedSet"
             :drag-source="dragSourceId"
             :drop-target="dropTargetId"
+            :drop-position="dropPosition"
             @toggle="toggleExpand"
             @add="openAddModal"
             @edit="openEditModal"
@@ -163,6 +171,8 @@ const templates = ref([])
 
 const dragSourceId = ref(null)
 const dropTargetId = ref(null)
+const dropPosition = ref(null)
+const isRootDropTarget = ref(false)
 
 const rootChildren = computed(() => store.getChildren(null))
 
@@ -315,41 +325,108 @@ async function handleDelete(nodeId) {
 }
 
 // Drag & drop
+//
+// Dropping on the top/bottom edge of a node ('before'/'after') inserts the
+// dragged node as a sibling at that position — same parent as the node you
+// dropped on. Dropping in the middle ('inside') nests it as a child. This
+// is what makes it possible to drag a node back out to the level it came
+// from: hover the edge of a node at that level instead of its center.
 function startDrag(nodeId) {
   dragSourceId.value = nodeId
 }
 
-function handleDragOver(nodeId) {
+function handleDragOver(nodeId, position) {
   if (nodeId !== dragSourceId.value) {
     dropTargetId.value = nodeId
+    dropPosition.value = position
+    isRootDropTarget.value = false
   }
 }
 
-async function handleDrop(targetNodeId) {
+async function handleDrop(targetNodeId, position) {
   if (!dragSourceId.value || dragSourceId.value === targetNodeId) {
     endDrag()
     return
   }
 
-  const sourceNode = store.getNode(dragSourceId.value)
-  if (!sourceNode) { endDrag(); return }
+  const sourceId = dragSourceId.value
+  let newParentId
+  let insertIndex
+
+  if (position === 'inside') {
+    newParentId = targetNodeId
+    insertIndex = store.getChildren(targetNodeId).filter(n => n.id !== sourceId).length
+  } else {
+    const targetNode = store.getNode(targetNodeId)
+    if (!targetNode) { endDrag(); return }
+    newParentId = targetNode.parent_id
+    const siblings = store.getChildren(newParentId).filter(n => n.id !== sourceId)
+    const targetIndex = siblings.findIndex(n => n.id === targetNodeId)
+    insertIndex = position === 'before' ? targetIndex : targetIndex + 1
+  }
+
+  await moveNodeTo(sourceId, newParentId, insertIndex)
+  if (position === 'inside' && targetNodeId) {
+    expandedSet.value.add(targetNodeId)
+    expandedSet.value = new Set(expandedSet.value)
+  }
+  endDrag()
+}
+
+// Root-level drop zone: dropping anywhere in the tree-root box that isn't
+// on a specific node (e.g. the empty area, or the header) moves the node
+// to the top level. This is the safety net for "I nested it by accident
+// and just want it back where it was."
+function onRootDragOver() {
+  if (dragSourceId.value) {
+    isRootDropTarget.value = true
+    dropTargetId.value = null
+    dropPosition.value = null
+  }
+}
+
+async function onRootDrop() {
+  if (!dragSourceId.value) return
+  const sourceId = dragSourceId.value
+  const insertIndex = store.getChildren(null).filter(n => n.id !== sourceId).length
+  await moveNodeTo(sourceId, null, insertIndex)
+  endDrag()
+}
+
+// Moves `sourceId` to be a child of `newParentId` at `insertIndex` among its
+// new siblings, renumbering sort_order for anyone displaced. Reparents via
+// the move endpoint only when the parent actually changed.
+async function moveNodeTo(sourceId, newParentId, insertIndex) {
+  const sourceNode = store.getNode(sourceId)
+  if (!sourceNode) return
 
   const prevParentId = sourceNode.parent_id
+  const prevSortOrder = sourceNode.sort_order
+
+  const siblings = store.getChildren(newParentId).filter(n => n.id !== sourceId)
+  const clamped = Math.max(0, Math.min(insertIndex, siblings.length))
+  siblings.splice(clamped, 0, sourceNode)
 
   try {
-    await store.moveNode(dragSourceId.value, targetNodeId)
-    pushUndo({ type: 'move', nodeId: dragSourceId.value, prevParentId })
-    if (targetNodeId) expandedSet.value.add(targetNodeId)
-    expandedSet.value = new Set(expandedSet.value)
+    if (newParentId !== prevParentId) {
+      await store.moveNode(sourceId, newParentId)
+    }
+    await Promise.all(
+      siblings
+        .map((n, i) => (n.sort_order === i ? null : store.updateNode(n.id, { sort_order: i })))
+        .filter(Boolean)
+    )
+    pushUndo({ type: 'move', nodeId: sourceId, prevParentId, prevSortOrder })
   } catch (err) {
     alert('Error moving node: ' + err.message)
   }
-  endDrag()
 }
 
 function endDrag() {
   dragSourceId.value = null
   dropTargetId.value = null
+  dropPosition.value = null
+  isRootDropTarget.value = false
 }
 
 // Undo / Redo
@@ -379,8 +456,12 @@ async function undo() {
       redoStack.value.push({ type: 'edit', nodeId: action.nodeId, prev: { label: current.label, copy: current.copy } })
     } else if (action.type === 'move') {
       const current = store.getNode(action.nodeId)
+      const redoAction = { type: 'move', nodeId: action.nodeId, prevParentId: current?.parent_id, prevSortOrder: current?.sort_order }
       await store.moveNode(action.nodeId, action.prevParentId)
-      redoStack.value.push({ type: 'move', nodeId: action.nodeId, prevParentId: current?.parent_id })
+      if (action.prevSortOrder !== undefined) {
+        await store.updateNode(action.nodeId, { sort_order: action.prevSortOrder })
+      }
+      redoStack.value.push(redoAction)
     } else if (action.type === 'delete-reverse') {
       await store.restoreNodes(action.nodes)
       redoStack.value.push({ type: 'add', nodes: action.nodes })
@@ -416,8 +497,12 @@ async function redo() {
       undoStack.value.push({ type: 'edit', nodeId: action.nodeId, prev: { label: current.label, copy: current.copy } })
     } else if (action.type === 'move') {
       const current = store.getNode(action.nodeId)
+      const undoAction = { type: 'move', nodeId: action.nodeId, prevParentId: current?.parent_id, prevSortOrder: current?.sort_order }
       await store.moveNode(action.nodeId, action.prevParentId)
-      undoStack.value.push({ type: 'move', nodeId: action.nodeId, prevParentId: current?.parent_id })
+      if (action.prevSortOrder !== undefined) {
+        await store.updateNode(action.nodeId, { sort_order: action.prevSortOrder })
+      }
+      undoStack.value.push(undoAction)
     } else if (action.type === 'add') {
       await store.restoreNodes(action.nodes)
       undoStack.value.push({ type: 'delete', nodes: action.nodes })
@@ -463,6 +548,21 @@ async function redo() {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.tree-root.is-root-drop-target {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.drop-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
 }
 
 .root-header {

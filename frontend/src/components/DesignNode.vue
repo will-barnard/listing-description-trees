@@ -4,6 +4,7 @@
     :class="{
       'is-dragging': isDragging,
       'is-drop-target': isDropTarget,
+      [`drop-${dropPositionForThis}`]: isDropTarget,
       'is-leaf': isLeaf
     }"
     draggable="true"
@@ -13,7 +14,7 @@
     @drop.prevent.stop="onDrop"
     @dragend="onDragEnd"
   >
-    <div class="node-row">
+    <div class="node-row" ref="rowRef">
       <!-- Expand/collapse -->
       <button
         v-if="!isLeaf"
@@ -68,39 +69,43 @@
         :expanded-set="expandedSet"
         :drag-source="dragSource"
         :drop-target="dropTarget"
+        :drop-position="dropPosition"
         @toggle="(id) => $emit('toggle', id)"
         @add="(id) => $emit('add', id)"
         @edit="(id) => $emit('edit', id)"
         @delete="(id) => $emit('delete', id)"
         @drag-start="(id) => $emit('drag-start', id)"
-        @drag-over="(id) => $emit('drag-over', id)"
+        @drag-over="(id, position) => $emit('drag-over', id, position)"
         @drag-end="() => $emit('drag-end')"
-        @drop="(id) => $emit('drop', id)"
+        @drop="(id, position) => $emit('drop', id, position)"
       />
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useTreeStore } from '../stores/tree'
 
 const props = defineProps({
   node: Object,
   expandedSet: Set,
   dragSource: Number,
-  dropTarget: Number
+  dropTarget: Number,
+  dropPosition: String
 })
 
 const emit = defineEmits(['toggle', 'add', 'edit', 'delete', 'drag-start', 'drag-over', 'drag-end', 'drop'])
 
 const store = useTreeStore()
+const rowRef = ref(null)
 
 const isExpanded = computed(() => props.expandedSet.has(props.node.id))
 const isLeaf = computed(() => store.isLeaf(props.node.id))
 const children = computed(() => store.getChildren(props.node.id))
 const isDragging = computed(() => props.dragSource === props.node.id)
 const isDropTarget = computed(() => props.dropTarget === props.node.id)
+const dropPositionForThis = computed(() => (isDropTarget.value ? props.dropPosition : null))
 
 const truncatedCopy = computed(() => {
   if (!props.node.copy) return ''
@@ -109,22 +114,36 @@ const truncatedCopy = computed(() => {
     : props.node.copy
 })
 
+// Which third of the row the cursor is over decides the intent:
+// top = insert as a sibling before this node, bottom = insert as a sibling
+// after this node, middle = nest inside this node as a child. This is what
+// lets you drag a node back out to the level it came from instead of only
+// ever being able to drop it inside another node.
+function positionFromEvent(e) {
+  if (!rowRef.value) return 'inside'
+  const rect = rowRef.value.getBoundingClientRect()
+  const ratio = (e.clientY - rect.top) / rect.height
+  if (ratio < 0.25) return 'before'
+  if (ratio > 0.75) return 'after'
+  return 'inside'
+}
+
 function onDragStart(e) {
   e.dataTransfer.effectAllowed = 'move'
   e.dataTransfer.setData('text/plain', String(props.node.id))
   emit('drag-start', props.node.id)
 }
 
-function onDragOver() {
-  emit('drag-over', props.node.id)
+function onDragOver(e) {
+  emit('drag-over', props.node.id, positionFromEvent(e))
 }
 
 function onDragLeave() {
   // handled by parent
 }
 
-function onDrop() {
-  emit('drop', props.node.id)
+function onDrop(e) {
+  emit('drop', props.node.id, positionFromEvent(e))
 }
 
 function onDragEnd() {
@@ -143,14 +162,25 @@ function onDragEnd() {
   opacity: 0.4;
 }
 
-.design-node.is-drop-target {
-  border-left-color: var(--accent);
+.design-node.is-leaf {
+  border-left-color: var(--success);
+}
+
+/* Dropping inside a node nests the dragged node as its child */
+.design-node.is-drop-target.drop-inside > .node-row {
   background: var(--accent-bg);
   border-radius: var(--radius);
 }
 
-.design-node.is-leaf {
-  border-left-color: var(--success);
+/* Dropping on the top/bottom edge of a node inserts the dragged node as a
+   sibling instead — this is what lets you drag a node back out of another
+   node's children and reorder it at the same level. */
+.design-node.is-drop-target.drop-before > .node-row {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
+.design-node.is-drop-target.drop-after > .node-row {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
 }
 
 .node-row {
