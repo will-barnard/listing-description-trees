@@ -59,6 +59,89 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Import a whole tree (name + nested nodes) in one shot. Body shape:
+//   { name, description?, nodes: [ { label, copy?, children? }, ... ] }
+// `nodes` is recursive — each entry may have its own `children` array.
+// Everything is created in a single transaction so a bad node partway
+// through doesn't leave a half-built tree behind.
+function validateImportNodes(nodes, path = 'nodes') {
+  if (!Array.isArray(nodes)) {
+    return `${path} must be an array`;
+  }
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    const nodePath = `${path}[${i}]`;
+    if (!n || typeof n !== 'object') {
+      return `${nodePath} must be an object`;
+    }
+    if (!n.label || typeof n.label !== 'string' || n.label.trim().length === 0) {
+      return `${nodePath}.label is required`;
+    }
+    if (n.copy !== undefined && n.copy !== null && typeof n.copy !== 'string') {
+      return `${nodePath}.copy must be a string`;
+    }
+    if (n.children !== undefined) {
+      const childError = validateImportNodes(n.children, `${nodePath}.children`);
+      if (childError) return childError;
+    }
+  }
+  return null;
+}
+
+async function insertImportNode(client, treeId, parentId, node, sortOrder) {
+  const { rows } = await client.query(
+    'INSERT INTO nodes (tree_id, parent_id, label, copy, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [treeId, parentId, node.label.trim(), node.copy || null, sortOrder]
+  );
+  const nodeId = rows[0].id;
+  let count = 1;
+  if (Array.isArray(node.children)) {
+    for (let i = 0; i < node.children.length; i++) {
+      count += await insertImportNode(client, treeId, nodeId, node.children[i], i);
+    }
+  }
+  return count;
+}
+
+router.post('/import', async (req, res) => {
+  const { name, description, nodes } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+
+  const nodesError = validateImportNodes(nodes || []);
+  if (nodesError) {
+    return res.status(400).json({ error: nodesError });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: treeRows } = await client.query(
+      'INSERT INTO trees (name, description, created_by) VALUES ($1, $2, $3) RETURNING *',
+      [name.trim(), description || null, req.user.username]
+    );
+    const tree = treeRows[0];
+
+    let nodeCount = 0;
+    const topLevel = nodes || [];
+    for (let i = 0; i < topLevel.length; i++) {
+      nodeCount += await insertImportNode(client, tree.id, null, topLevel[i], i);
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ ...tree, nodeCount });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error importing tree:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+});
+
 // Update a tree
 router.put('/:id', async (req, res) => {
   const treeId = parseInt(req.params.id);

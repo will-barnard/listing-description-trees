@@ -14,10 +14,16 @@
       <div v-if="pageReady">
         <div class="home-header">
           <h1>{{ orgName }}</h1>
-          <button class="btn btn-primary" @click="showCreate = true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Tree
-          </button>
+          <div class="home-header-actions">
+            <button class="btn btn-ghost" @click="openImport">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Import
+            </button>
+            <button class="btn btn-primary" @click="showCreate = true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Tree
+            </button>
+          </div>
         </div>
 
         <div v-if="store.loading" class="loading">Loading trees…</div>
@@ -81,15 +87,56 @@
         </div>
       </div>
     </div>
+
+    <!-- Import Modal -->
+    <div v-if="importModal.open" class="modal-overlay" @click.self="closeImport">
+      <div class="modal import-modal">
+        <h2>Import Tree</h2>
+        <p class="field-help">
+          Upload or paste a JSON file shaped like <code>{ name, description?, nodes: [...] }</code>,
+          where each entry in <code>nodes</code> can have its own <code>label</code>, <code>copy</code>,
+          and nested <code>children</code>. This creates a brand new tree — it won't touch existing ones.
+        </p>
+
+        <div class="form-group">
+          <label>JSON file</label>
+          <input type="file" accept="application/json,.json" @change="onImportFileChange" ref="importFileRef" />
+        </div>
+
+        <div class="form-group">
+          <label>Or paste JSON</label>
+          <textarea
+            v-model="importModal.text"
+            rows="10"
+            class="import-textarea"
+            placeholder='{"name": "Rhodes", "nodes": [{"label": "Rhodes 54", "copy": "..."}]}'
+          ></textarea>
+        </div>
+
+        <p v-if="importModal.error" class="banner banner-danger">{{ importModal.error }}</p>
+        <p v-if="importModal.preview" class="import-preview">
+          Ready to import "<strong>{{ importModal.preview.name }}</strong>" — {{ importModal.preview.nodeCount }} node{{ importModal.preview.nodeCount === 1 ? '' : 's' }}.
+        </p>
+
+        <div class="form-actions">
+          <button class="btn btn-ghost" @click="closeImport">Cancel</button>
+          <button class="btn btn-primary" @click="doImport" :disabled="!importModal.text.trim() || importModal.importing">
+            {{ importModal.importing ? 'Importing…' : 'Import' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useTreeStore } from '../stores/tree'
 import { api } from '../api'
 
 const store = useTreeStore()
+const router = useRouter()
 const showCreate = ref(false)
 const newTree = ref({ name: '', description: '' })
 const deleteTarget = ref(null)
@@ -138,6 +185,94 @@ async function doDelete() {
   deleteTarget.value = null
   store.fetchTrees()
 }
+
+// Import
+const importFileRef = ref(null)
+const importModal = reactive({
+  open: false,
+  text: '',
+  error: '',
+  preview: null,
+  importing: false
+})
+
+function countNodes(nodes) {
+  if (!Array.isArray(nodes)) return 0
+  return nodes.reduce((sum, n) => sum + 1 + countNodes(n.children), 0)
+}
+
+// Re-validate and preview as the user types/pastes, so mistakes surface
+// before they hit the Import button rather than after.
+watch(() => importModal.text, (text) => {
+  importModal.error = ''
+  importModal.preview = null
+  if (!text.trim()) return
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed.name || typeof parsed.name !== 'string') {
+      importModal.error = 'JSON must include a "name" string'
+      return
+    }
+    if (parsed.nodes !== undefined && !Array.isArray(parsed.nodes)) {
+      importModal.error = '"nodes" must be an array'
+      return
+    }
+    importModal.preview = { name: parsed.name, nodeCount: countNodes(parsed.nodes || []) }
+  } catch {
+    importModal.error = 'Not valid JSON'
+  }
+})
+
+function openImport() {
+  importModal.open = true
+  importModal.text = ''
+  importModal.error = ''
+  importModal.preview = null
+  importModal.importing = false
+}
+
+function closeImport() {
+  importModal.open = false
+}
+
+function onImportFileChange(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    importModal.text = String(reader.result || '')
+  }
+  reader.onerror = () => {
+    importModal.error = 'Could not read that file'
+  }
+  reader.readAsText(file)
+}
+
+async function doImport() {
+  if (!importModal.text.trim() || importModal.importing) return
+
+  let parsed
+  try {
+    parsed = JSON.parse(importModal.text)
+  } catch {
+    importModal.error = 'Not valid JSON'
+    return
+  }
+
+  importModal.importing = true
+  importModal.error = ''
+  try {
+    const tree = await api.importTree(parsed)
+    closeImport()
+    if (importFileRef.value) importFileRef.value.value = ''
+    await store.fetchTrees()
+    router.push(`/design/${tree.id}`)
+  } catch (err) {
+    importModal.error = err.message || 'Import failed'
+  } finally {
+    importModal.importing = false
+  }
+}
 </script>
 
 <style scoped>
@@ -150,6 +285,11 @@ async function doDelete() {
 
 .home-header h1 {
   font-size: 1.5rem;
+}
+
+.home-header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .tree-grid {
@@ -244,5 +384,47 @@ async function doDelete() {
 .reveal-enter-to {
   opacity: 1;
   transform: translateY(0);
+}
+
+.import-modal {
+  min-width: 480px;
+}
+
+.field-help {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.field-help code {
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.78rem;
+}
+
+.import-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
+.import-preview {
+  font-size: 0.85rem;
+  color: var(--success);
+  margin-bottom: 8px;
+}
+
+.banner {
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.banner-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 </style>

@@ -54,6 +54,7 @@ export const api = {
   createTree: (data) => request('/trees', { method: 'POST', body: JSON.stringify(data) }),
   updateTree: (id, data) => request(`/trees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTree: (id) => request(`/trees/${id}`, { method: 'DELETE' }),
+  importTree: (data) => request('/trees/import', { method: 'POST', body: JSON.stringify(data) }),
 
   // Nodes
   getChildren: (treeId, parentId) => {
