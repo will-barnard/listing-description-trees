@@ -1,16 +1,11 @@
 const API_BASE = '/api'
 
-let _config = null
-
-async function getConfig() {
-  if (_config) return _config
-  try {
-    const res = await fetch(`${API_BASE}/config`)
-    _config = await res.json()
-  } catch {
-    _config = { authDisabled: false, authLoginUrl: '/login' }
-  }
-  return _config
+// Fired on any 401 so the auth store / router can react (clear user state,
+// redirect to /login, show a "session expired" message when the token had
+// simply expired rather than just being absent).
+let onUnauthorized = null
+export function setUnauthorizedHandler(fn) {
+  onUnauthorized = fn
 }
 
 async function request(path, options = {}) {
@@ -21,12 +16,9 @@ async function request(path, options = {}) {
   })
 
   if (res.status === 401) {
-    const config = await getConfig()
-    if (!config.authDisabled) {
-      const returnUrl = encodeURIComponent(window.location.href)
-      window.location.href = `${config.authLoginUrl}?return_url=${returnUrl}`
-    }
-    throw new Error('Not authenticated')
+    const body = await res.json().catch(() => ({}))
+    if (onUnauthorized) onUnauthorized(body.code)
+    throw new Error(body.error || 'Not authenticated')
   }
 
   if (!res.ok) {
@@ -34,12 +26,23 @@ async function request(path, options = {}) {
     throw new Error(body.error || `Request failed: ${res.status}`)
   }
 
+  if (res.status === 204) return null
   return res.json()
 }
 
 export const api = {
   // Auth
+  getAuthStatus: () => request('/auth/status'),
+  register: (data) => request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data) => request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/me'),
+
+  // User management (admin only)
+  getUsers: () => request('/users'),
+  createUser: (data) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUserRole: (id, role) => request(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
 
   // Trees
   getTrees: () => request('/trees'),

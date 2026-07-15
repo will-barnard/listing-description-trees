@@ -8,6 +8,95 @@
       <h1>Settings</h1>
     </div>
 
+    <!-- User Management (admin only) -->
+    <section class="settings-section" v-if="auth.isAdmin">
+      <div class="section-header">
+        <h2>Users</h2>
+        <button class="btn btn-primary btn-sm" @click="openCreateUser">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New User
+        </button>
+      </div>
+
+      <p class="section-desc">Only admins can create accounts — there's no self-service sign-up.</p>
+
+      <p v-if="userError" class="banner banner-danger">{{ userError }}</p>
+
+      <div v-if="usersLoading" class="loading">Loading users…</div>
+
+      <div v-else class="user-list">
+        <div v-for="u in users" :key="u.id" class="user-row card">
+          <div class="user-info">
+            <span class="user-name">{{ u.username }}</span>
+            <span class="user-email">{{ u.email }}</span>
+          </div>
+          <span class="badge" :class="{ 'badge-admin': u.role === 'admin' }">{{ u.role }}</span>
+          <div class="user-actions">
+            <button
+              class="btn btn-ghost btn-sm"
+              @click="toggleRole(u)"
+              :disabled="u.id === auth.user.id"
+              :title="u.id === auth.user.id ? 'Cannot change your own role' : ''"
+            >
+              {{ u.role === 'admin' ? 'Make user' : 'Make admin' }}
+            </button>
+            <button
+              class="btn-icon btn-danger"
+              @click="confirmDeleteUser(u)"
+              :disabled="u.id === auth.user.id"
+              title="Delete user"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Create User Modal -->
+    <div v-if="userModal.open" class="modal-overlay" @click.self="userModal.open = false">
+      <div class="modal">
+        <h2>New User</h2>
+        <p v-if="userModal.error" class="banner banner-danger">{{ userModal.error }}</p>
+        <div class="form-group">
+          <label>Email</label>
+          <input v-model="userModal.email" type="email" placeholder="name@example.com" autofocus />
+        </div>
+        <div class="form-group">
+          <label>Username</label>
+          <input v-model="userModal.username" placeholder="e.g. jsmith" />
+        </div>
+        <div class="form-group">
+          <label>Temporary Password</label>
+          <input v-model="userModal.password" type="text" placeholder="At least 8 characters" />
+          <p class="field-help">Share this with them directly — there's no email invite flow.</p>
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select v-model="userModal.role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" @click="userModal.open = false">Cancel</button>
+          <button class="btn btn-primary" @click="saveUser" :disabled="!canSaveUser">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete User Confirm -->
+    <div v-if="deleteUserTarget" class="modal-overlay" @click.self="deleteUserTarget = null">
+      <div class="modal">
+        <h2>Delete "{{ deleteUserTarget.username }}"?</h2>
+        <p style="color: var(--text-muted); margin-bottom: 16px;">This account will lose access immediately. This cannot be undone.</p>
+        <div class="form-actions">
+          <button class="btn btn-ghost" @click="deleteUserTarget = null">Cancel</button>
+          <button class="btn btn-primary" style="background: var(--danger);" @click="doDeleteUser">Delete</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Child Node Templates -->
     <section class="settings-section">
       <div class="section-header">
@@ -101,6 +190,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { api } from '../api'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 
 const templates = ref([])
 const loading = ref(true)
@@ -118,9 +210,94 @@ const canSave = computed(() =>
   modal.name.trim().length > 0 && modal.children.some(c => c.trim().length > 0)
 )
 
+// User management (admin only)
+const users = ref([])
+const usersLoading = ref(true)
+const userError = ref('')
+const deleteUserTarget = ref(null)
+
+const userModal = reactive({
+  open: false,
+  email: '',
+  username: '',
+  password: '',
+  role: 'user',
+  error: ''
+})
+
+const canSaveUser = computed(() =>
+  userModal.email.trim().length > 0 &&
+  userModal.username.trim().length > 1 &&
+  userModal.password.length >= 8
+)
+
 onMounted(async () => {
   await fetchTemplates()
+  if (auth.isAdmin) await fetchUsers()
 })
+
+async function fetchUsers() {
+  usersLoading.value = true
+  userError.value = ''
+  try {
+    users.value = await api.getUsers()
+  } catch (err) {
+    userError.value = err.message
+  } finally {
+    usersLoading.value = false
+  }
+}
+
+function openCreateUser() {
+  userModal.open = true
+  userModal.email = ''
+  userModal.username = ''
+  userModal.password = ''
+  userModal.role = 'user'
+  userModal.error = ''
+}
+
+async function saveUser() {
+  if (!canSaveUser.value) return
+  userModal.error = ''
+  try {
+    await api.createUser({
+      email: userModal.email.trim(),
+      username: userModal.username.trim(),
+      password: userModal.password,
+      role: userModal.role
+    })
+    userModal.open = false
+    await fetchUsers()
+  } catch (err) {
+    userModal.error = err.message
+  }
+}
+
+async function toggleRole(u) {
+  const newRole = u.role === 'admin' ? 'user' : 'admin'
+  try {
+    await api.updateUserRole(u.id, newRole)
+    await fetchUsers()
+  } catch (err) {
+    userError.value = err.message
+  }
+}
+
+function confirmDeleteUser(u) {
+  deleteUserTarget.value = u
+}
+
+async function doDeleteUser() {
+  try {
+    await api.deleteUser(deleteUserTarget.value.id)
+    deleteUserTarget.value = null
+    await fetchUsers()
+  } catch (err) {
+    userError.value = err.message
+    deleteUserTarget.value = null
+  }
+}
 
 async function fetchTemplates() {
   loading.value = true
@@ -284,5 +461,58 @@ async function doDelete() {
   text-align: center;
   padding: 40px;
   color: var(--text-muted);
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.user-email {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.badge-admin {
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--success);
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.banner {
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.banner-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 </style>

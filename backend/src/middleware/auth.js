@@ -1,53 +1,53 @@
 const jwt = require('jsonwebtoken');
-const jwksRsa = require('jwks-rsa');
 
 const AUTH_DISABLED = process.env.AUTH_DISABLED === 'true';
-const AUTH_JWKS_URL = process.env.AUTH_JWKS_URL;
-const AUTH_ISSUER = process.env.AUTH_ISSUER;
-const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'brew_token';
+const JWT_SECRET = process.env.JWT_SECRET;
+const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'auth_token';
+const ISSUER = 'listing-description-trees';
+const TOKEN_TTL = '24h';
 
-if (!AUTH_DISABLED && (!AUTH_JWKS_URL || !AUTH_ISSUER)) {
-  console.error('AUTH_JWKS_URL and AUTH_ISSUER environment variables are required');
+if (!AUTH_DISABLED && !JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is required');
   process.exit(1);
 }
 
-const jwksClient = jwksRsa({
-  jwksUri: AUTH_JWKS_URL,
-  cache: true,
-  cacheMaxAge: 600000 // 10 minutes
-});
+function signToken(user) {
+  return jwt.sign(
+    { sub: user.id, email: user.email, username: user.username, role: user.role },
+    JWT_SECRET,
+    { expiresIn: TOKEN_TTL, issuer: ISSUER }
+  );
+}
 
-function getKey(header, callback) {
-  jwksClient.getSigningKey(header.kid, (err, key) => {
-    if (err) return callback(err);
-    callback(null, key.getPublicKey());
+function setAuthCookie(res, token) {
+  res.cookie(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000
   });
 }
 
-function verifyToken(token) {
-  return new Promise((resolve, reject) => {
-    jwt.verify(token, getKey, {
-      algorithms: ['RS256'],
-      issuer: AUTH_ISSUER
-    }, (err, decoded) => {
-      if (err) return reject(err);
-      resolve(decoded);
-    });
-  });
+function clearAuthCookie(res) {
+  res.clearCookie(AUTH_COOKIE_NAME);
 }
 
 async function authMiddleware(req, res, next) {
   if (AUTH_DISABLED) {
-    req.user = { id: 'dev', email: 'dev@localhost', username: 'dev', role: 'super_admin' };
+    req.user = { id: 0, email: 'dev@localhost', username: 'dev', role: 'admin' };
     return next();
   }
 
   const token = req.cookies[AUTH_COOKIE_NAME];
   if (!token) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(401).json({ error: 'Not authenticated', code: 'NOT_AUTHENTICATED' });
   }
+
   try {
-    const decoded = await verifyToken(token);
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: ['HS256'],
+      issuer: ISSUER
+    });
     req.user = {
       id: decoded.sub,
       email: decoded.email,
@@ -56,8 +56,24 @@ async function authMiddleware(req, res, next) {
     };
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
+    clearAuthCookie(res);
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Session expired', code: 'TOKEN_EXPIRED' });
+    }
+    return res.status(401).json({ error: 'Invalid token', code: 'INVALID_TOKEN' });
   }
 }
 
+function adminOnly(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
 module.exports = authMiddleware;
+module.exports.signToken = signToken;
+module.exports.setAuthCookie = setAuthCookie;
+module.exports.clearAuthCookie = clearAuthCookie;
+module.exports.adminOnly = adminOnly;
+module.exports.AUTH_COOKIE_NAME = AUTH_COOKIE_NAME;

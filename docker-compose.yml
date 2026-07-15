@@ -19,10 +19,10 @@ services:
       DB_NAME: listing_trees
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
       AUTH_DISABLED: ${AUTH_DISABLED:-false}
-      AUTH_JWKS_URL: ${AUTH_JWKS_URL}
-      AUTH_ISSUER: ${AUTH_ISSUER}
-      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-brew_token}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-auth_token}
+      NODE_ENV: production
     networks:
       - internal
 

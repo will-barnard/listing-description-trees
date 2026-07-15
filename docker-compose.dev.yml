@@ -31,7 +31,8 @@ services:
       DB_NAME: listing_trees
       DB_USER: postgres
       DB_PASSWORD: devpassword
-      AUTH_DISABLED: "true"
+      JWT_SECRET: dev-only-insecure-secret-change-me
+      AUTH_DISABLED: "false"
       CORS_ORIGIN: http://localhost:5173
     depends_on:
       postgres:
