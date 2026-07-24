@@ -22,7 +22,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AUTH_DISABLED: ${AUTH_DISABLED:-false}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-auth_token}
-      API_TOKEN: "test123"
+      API_TOKEN: ${API_TOKEN}
       NODE_ENV: production
     networks:
       - internal
