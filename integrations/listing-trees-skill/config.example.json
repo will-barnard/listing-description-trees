@@ -1,0 +1,4 @@
+{
+  "LISTING_TREES_URL": "https://your-listing-trees-app.example.com",
+  "LISTING_TREES_TOKEN": "paste-the-API_TOKEN-value-here"
+}
