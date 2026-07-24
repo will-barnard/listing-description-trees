@@ -33,6 +33,7 @@ services:
       DB_PASSWORD: devpassword
       JWT_SECRET: dev-only-insecure-secret-change-me
       AUTH_DISABLED: "false"
+      API_TOKEN: dev-api-token
       CORS_ORIGIN: http://localhost:5173
     depends_on:
       postgres:
