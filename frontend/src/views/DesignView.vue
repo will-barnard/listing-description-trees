@@ -139,7 +139,7 @@
 
     <!-- Edit Node Modal -->
     <div v-if="editModal.open" class="modal-overlay" @click.self="editModal.open = false">
-      <div class="modal">
+      <div class="modal modal-wide">
         <h2>Edit Node</h2>
         <div class="form-group">
           <label>Label</label>
@@ -147,7 +147,7 @@
         </div>
         <div class="form-group">
           <label>Copy (leave empty for branch nodes)</label>
-          <textarea v-model="editModal.copy" rows="6" placeholder="Listing copy…"></textarea>
+          <textarea v-model="editModal.copy" rows="18" class="copy-textarea-lg" placeholder="Listing copy…"></textarea>
         </div>
         <div class="form-actions">
           <button class="btn btn-ghost" @click="editModal.open = false">Cancel</button>
@@ -659,5 +659,18 @@ async function redo() {
   text-align: center;
   color: var(--text-muted);
   padding: 60px;
+}
+
+.modal-wide {
+  min-width: 520px;
+  max-width: 760px;
+  width: 90vw;
+}
+
+.copy-textarea-lg {
+  min-height: 420px;
+  max-height: 60vh;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 </style>
