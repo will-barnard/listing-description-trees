@@ -72,7 +72,7 @@
     </section>
 
     <!-- Create User Modal -->
-    <div v-if="userModal.open" class="modal-overlay" @click.self="userModal.open = false">
+    <div v-if="userModal.open" class="modal-overlay" @mousedown="userModalBackdrop.onMouseDown" @click="userModalBackdrop.onClick">
       <div class="modal">
         <h2>New User</h2>
         <p v-if="userModal.error" class="banner banner-danger">{{ userModal.error }}</p>
@@ -104,7 +104,7 @@
     </div>
 
     <!-- Delete User Confirm -->
-    <div v-if="deleteUserTarget" class="modal-overlay" @click.self="deleteUserTarget = null">
+    <div v-if="deleteUserTarget" class="modal-overlay" @mousedown="deleteUserTargetBackdrop.onMouseDown" @click="deleteUserTargetBackdrop.onClick">
       <div class="modal">
         <h2>Delete "{{ deleteUserTarget.username }}"?</h2>
         <p style="color: var(--text-muted); margin-bottom: 16px;">This account will lose access immediately. This cannot be undone.</p>
@@ -155,7 +155,7 @@
     </section>
 
     <!-- Create/Edit Modal -->
-    <div v-if="modal.open" class="modal-overlay" @click.self="modal.open = false">
+    <div v-if="modal.open" class="modal-overlay" @mousedown="modalBackdrop.onMouseDown" @click="modalBackdrop.onClick">
       <div class="modal">
         <h2>{{ modal.editing ? 'Edit' : 'New' }} Template</h2>
         <div class="form-group">
@@ -192,7 +192,7 @@
     </div>
 
     <!-- Delete Confirm -->
-    <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
+    <div v-if="deleteTarget" class="modal-overlay" @mousedown="deleteTargetBackdrop.onMouseDown" @click="deleteTargetBackdrop.onClick">
       <div class="modal">
         <h2>Delete "{{ deleteTarget.name }}"?</h2>
         <p style="color: var(--text-muted); margin-bottom: 16px;">This template will be permanently deleted. Trees already built from it are not affected.</p>
@@ -209,12 +209,14 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
+import { useBackdropClose } from '../composables/useBackdropClose'
 
 const auth = useAuthStore()
 
 const templates = ref([])
 const loading = ref(true)
 const deleteTarget = ref(null)
+const deleteTargetBackdrop = useBackdropClose(() => { deleteTarget.value = null })
 
 const modal = reactive({
   open: false,
@@ -223,6 +225,7 @@ const modal = reactive({
   name: '',
   children: ['']
 })
+const modalBackdrop = useBackdropClose(() => { modal.open = false })
 
 const canSave = computed(() =>
   modal.name.trim().length > 0 && modal.children.some(c => c.trim().length > 0)
@@ -233,6 +236,7 @@ const users = ref([])
 const usersLoading = ref(true)
 const userError = ref('')
 const deleteUserTarget = ref(null)
+const deleteUserTargetBackdrop = useBackdropClose(() => { deleteUserTarget.value = null })
 
 const userModal = reactive({
   open: false,
@@ -242,6 +246,7 @@ const userModal = reactive({
   role: 'user',
   error: ''
 })
+const userModalBackdrop = useBackdropClose(() => { userModal.open = false })
 
 const canSaveUser = computed(() =>
   userModal.email.trim().length > 0 &&

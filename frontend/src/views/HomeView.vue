@@ -58,7 +58,7 @@
     </Transition>
 
     <!-- Create Modal -->
-    <div v-if="showCreate" class="modal-overlay" @click.self="showCreate = false">
+    <div v-if="showCreate" class="modal-overlay" @mousedown="showCreateBackdrop.onMouseDown" @click="showCreateBackdrop.onClick">
       <div class="modal">
         <h2>New Tree</h2>
         <div class="form-group">
@@ -77,7 +77,7 @@
     </div>
 
     <!-- Delete Confirm -->
-    <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
+    <div v-if="deleteTarget" class="modal-overlay" @mousedown="deleteTargetBackdrop.onMouseDown" @click="deleteTargetBackdrop.onClick">
       <div class="modal">
         <h2>Delete "{{ deleteTarget.name }}"?</h2>
         <p style="color: var(--text-muted); margin-bottom: 16px;">This will permanently delete the tree and all its nodes. This cannot be undone.</p>
@@ -89,7 +89,7 @@
     </div>
 
     <!-- Import Modal -->
-    <div v-if="importModal.open" class="modal-overlay" @click.self="closeImport">
+    <div v-if="importModal.open" class="modal-overlay" @mousedown="importModalBackdrop.onMouseDown" @click="importModalBackdrop.onClick">
       <div class="modal import-modal">
         <h2>Import Tree</h2>
         <p class="field-help">
@@ -134,12 +134,15 @@ import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTreeStore } from '../stores/tree'
 import { api } from '../api'
+import { useBackdropClose } from '../composables/useBackdropClose'
 
 const store = useTreeStore()
 const router = useRouter()
 const showCreate = ref(false)
 const newTree = ref({ name: '', description: '' })
 const deleteTarget = ref(null)
+const showCreateBackdrop = useBackdropClose(() => { showCreate.value = false })
+const deleteTargetBackdrop = useBackdropClose(() => { deleteTarget.value = null })
 const orgName = ref('Your Trees')
 const pageReady = ref(false)
 
@@ -234,6 +237,8 @@ function openImport() {
 function closeImport() {
   importModal.open = false
 }
+
+const importModalBackdrop = useBackdropClose(closeImport)
 
 function onImportFileChange(e) {
   const file = e.target.files?.[0]

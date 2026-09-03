@@ -86,7 +86,7 @@
     </template>
 
     <!-- Add Node Modal -->
-    <div v-if="addModal.open" class="modal-overlay" @click.self="addModal.open = false">
+    <div v-if="addModal.open" class="modal-overlay" @mousedown="addBackdrop.onMouseDown" @click="addBackdrop.onClick">
       <div class="modal">
         <h2>Add to {{ addModal.parentLabel }}</h2>
 
@@ -138,7 +138,7 @@
     </div>
 
     <!-- Edit Node Modal -->
-    <div v-if="editModal.open" class="modal-overlay" @click.self="editModal.open = false">
+    <div v-if="editModal.open" class="modal-overlay" @mousedown="editBackdrop.onMouseDown" @click="editBackdrop.onClick">
       <div class="modal modal-wide">
         <h2>Edit Node</h2>
         <div class="form-group">
@@ -163,6 +163,7 @@ import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
 import { useTreeStore } from '../stores/tree'
 import { api } from '../api'
 import DesignNode from '../components/DesignNode.vue'
+import { useBackdropClose } from '../composables/useBackdropClose'
 
 const props = defineProps({ treeId: [String, Number] })
 const store = useTreeStore()
@@ -191,6 +192,7 @@ const addModal = reactive({
 })
 
 const addInputRef = ref(null)
+const addBackdrop = useBackdropClose(() => { addModal.open = false })
 
 // Edit modal
 const editModal = reactive({
@@ -199,6 +201,7 @@ const editModal = reactive({
   label: '',
   copy: ''
 })
+const editBackdrop = useBackdropClose(() => { editModal.open = false })
 
 const canAdd = computed(() => {
   if (addModal.tab === 'single') return addModal.label.trim().length > 0
