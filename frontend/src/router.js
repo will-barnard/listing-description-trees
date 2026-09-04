@@ -35,6 +35,11 @@ const routes = [
     path: '/settings',
     name: 'settings',
     component: () => import('./views/SettingsView.vue')
+  },
+  {
+    path: '/restoration-disclaimer',
+    name: 'restoration-disclaimer',
+    component: () => import('./views/RestorationDisclaimerView.vue')
   }
 ]
 

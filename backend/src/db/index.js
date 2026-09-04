@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS app_settings (
 INSERT INTO app_settings (id, org_name)
 VALUES (1, 'Your Trees')
 ON CONFLICT (id) DO NOTHING;
+
+-- Disclaimer copy prepended to listings for instruments tagged "restoration"
+-- on Shopify (e.g. deposit / reservation terms). Editable by any signed-in
+-- user, unlike the admin-only settings above — see routes/restoration-disclaimer.js.
+ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS restoration_disclaimer TEXT NOT NULL DEFAULT '';
 `;
 
 async function migrate() {

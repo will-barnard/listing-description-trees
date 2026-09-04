@@ -6,7 +6,9 @@ description: >
   pull, review, generate, or update description "trees" or "nodes" (labels + copy)
   for online listings, or is about to push listing copy to Shopify. Always read
   the current tree from the app before editing, and write changes back to the app
-  — never treat a local JSON file as the master copy.
+  — never treat a local JSON file as the master copy. For a Shopify listing
+  tagged "restoration", also pull the restoration disclaimer from the app and
+  prepend it to the tree copy before pushing.
 ---
 
 # Listing Trees integration
@@ -28,6 +30,11 @@ not treat them as canonical.
    diverge, Listing Trees wins unless the user says otherwise.
 4. **Confirm destructive actions.** `DELETE` on a node cascades to its children.
    Confirm with the user before deleting a tree or a node with children.
+5. **Restoration listings get the disclaimer prepended.** If the Shopify listing
+   you're building or pushing copy to is tagged `restoration`, fetch the
+   restoration disclaimer (see below) and prepend it to the tree copy — the
+   disclaimer is separate app-wide text, not stored on the tree itself, so
+   don't skip this just because the tree's own nodes look complete.
 
 ## Setup / auth
 
@@ -55,6 +62,8 @@ node scripts/lt.mjs update-node <nodeId> --copy "New copy" [--label "New label"]
 node scripts/lt.mjs create-node --tree <id> [--parent <id>] --label "..." [--copy "..."]
 node scripts/lt.mjs children --tree <id> [--parent <id>]
 node scripts/lt.mjs templates                   # list node templates
+node scripts/lt.mjs restoration-disclaimer       # get the restoration disclaimer text
+node scripts/lt.mjs set-restoration-disclaimer --text "..."
 ```
 
 Anything the CLI doesn't cover, call the REST API directly with `curl` using the
@@ -109,7 +118,33 @@ Nodes:
 Templates:
 - `GET  /api/templates` · `POST /api/templates` · `PUT /api/templates/:id` · `DELETE /api/templates/:id`
 
+Restoration disclaimer (single string, app-wide — not a tree/node):
+- `GET  /api/restoration-disclaimer` — `{ restorationDisclaimer }`
+- `PUT  /api/restoration-disclaimer` — `{ restorationDisclaimer }`, any authenticated user
+
 Health/config (no auth): `GET /api/health`, `GET /api/config`.
+
+## Restoration listings and the disclaimer
+
+Some listings are for instruments currently being restored, sold on a deposit /
+reservation basis. Those Shopify listings are tagged `restoration`. Their
+finished copy is: **disclaimer text + the tree copy**, in that order — the
+disclaimer is not a tree node and is not per-tree; it's one shared block of
+text edited on the "Restoration Disclaimer" page in the app (and readable via
+`GET /api/restoration-disclaimer`).
+
+When generating or pushing copy for a listing tagged `restoration`:
+1. Fetch the tree copy as usual (see workflows below).
+2. Fetch the disclaimer: `node scripts/lt.mjs restoration-disclaimer`.
+3. Prepend the disclaimer text to the front of the assembled listing copy,
+   then push the combined result to Shopify.
+4. If the listing is **not** tagged `restoration`, don't add the disclaimer —
+   it only applies to that tag.
+
+To change the disclaimer's wording itself, edit it in the app (Restoration
+Disclaimer page) or via `set-restoration-disclaimer --text "..."` — the same
+read-before-write caution as trees doesn't really apply here since it's a
+single string with no children, but still re-fetch after writing to confirm.
 
 ## Typical workflows
 

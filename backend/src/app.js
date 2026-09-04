@@ -9,6 +9,7 @@ const settingsRouter = require('./routes/settings');
 const treesRouter = require('./routes/trees');
 const nodesRouter = require('./routes/nodes');
 const templatesRouter = require('./routes/templates');
+const restorationDisclaimerRouter = require('./routes/restoration-disclaimer');
 
 function createApp() {
   const app = express();
@@ -44,6 +45,7 @@ function createApp() {
   app.use('/api/trees', authMiddleware, treesRouter);
   app.use('/api/nodes', authMiddleware, nodesRouter);
   app.use('/api/templates', authMiddleware, templatesRouter);
+  app.use('/api/restoration-disclaimer', authMiddleware, restorationDisclaimerRouter);
 
   return app;
 }

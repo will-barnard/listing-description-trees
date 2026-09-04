@@ -48,6 +48,10 @@ export const api = {
   getSettings: () => request('/settings'),
   updateSettings: (data) => request('/settings', { method: 'PUT', body: JSON.stringify(data) }),
 
+  // Restoration disclaimer (listing copy, not an app setting — any signed-in user can edit)
+  getRestorationDisclaimer: () => request('/restoration-disclaimer'),
+  updateRestorationDisclaimer: (data) => request('/restoration-disclaimer', { method: 'PUT', body: JSON.stringify(data) }),
+
   // Trees
   getTrees: () => request('/trees'),
   getTree: (id) => request(`/trees/${id}`),

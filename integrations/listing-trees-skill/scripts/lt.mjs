@@ -139,6 +139,13 @@ const commands = {
 
   async templates() { out(await api('GET', '/templates')); },
 
+  async 'restoration-disclaimer'() { out(await api('GET', '/restoration-disclaimer')); },
+
+  async 'set-restoration-disclaimer'() {
+    if (f.text === undefined) die('usage: set-restoration-disclaimer --text "..."');
+    out(await api('PUT', '/restoration-disclaimer', { restorationDisclaimer: f.text }));
+  },
+
   async health() { out(await api('GET', '/health')); }
 };
 
@@ -149,6 +156,7 @@ if (!cmd || !commands[cmd]) {
   console.error('  create-node --tree <id> [--parent <id>] --label ... [--copy ...]');
   console.error('  update-node <id> [--label ...] [--copy ...] [--sort n]');
   console.error('  delete-node <id> | templates | health');
+  console.error('  restoration-disclaimer | set-restoration-disclaimer --text "..."');
   process.exit(cmd ? 1 : 0);
 }
 
